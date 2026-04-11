@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<article class="{{ page.extra.get('feature_class', '') }}">
+  <p class="tag-list">{{ page.extra.get('tag_list', '') }}</p>
+  <h1>{{ page.title }}</h1>
+  <div>
+    {{ page.html | safe }}
+  </div>
+</article>
+{% endblock %}

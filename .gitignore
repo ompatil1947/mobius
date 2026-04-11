@@ -1,0 +1,7 @@
+site/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.egg-info/
+solution.md
+MAINTAINER_FLOW.md

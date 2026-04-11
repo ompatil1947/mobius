@@ -1,0 +1,67 @@
+name: workflow-check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install workflow tools
+        run: python -m pip install pyyaml
+
+      - name: Validate build workflow
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          workflow = yaml.safe_load(Path('.github/workflows/build.yml').read_text())
+          names = [step.get('name', '') for step in workflow['jobs']['test']['steps']]
+          required = [
+              'Set up Python',
+              'Install project',
+              'Install test tools',
+              'Build site',
+              'Run tests',
+          ]
+          missing = [name for name in required if name not in names]
+          if missing:
+              raise SystemExit(f'missing workflow steps: {missing}')
+
+          install_step = next(step for step in workflow['jobs']['test']['steps'] if step.get('name') == 'Install project')
+          run_block = install_step.get('run', '')
+          if 'pip install .' not in run_block:
+              raise SystemExit('build workflow must install the project with pip install .')
+            if 'pip install -e' in run_block:
+              raise SystemExit('build workflow must not install the dependency manually')
+          PY
+
+      - name: Build reference site
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml pytest
+          python -m pip install .
+          python -m mobius.cli build
+
+      - name: Compare output
+        run: |
+          python - <<'PY'
+          from filecmp import cmp
+          from pathlib import Path
+
+          def files(root):
+              return sorted(p for p in root.rglob('*') if p.is_file())
+
+          output = Path('site')
+          expected = Path('expected_site')
+          out_files = files(output)
+          exp_files = files(expected)
+          assert [p.relative_to(output) for p in out_files] == [p.relative_to(expected) for p in exp_files]
+          for generated in out_files:
+              ref = expected / generated.relative_to(output)
+              assert cmp(generated, ref, shallow=False)
+          PY

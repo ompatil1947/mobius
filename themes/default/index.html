@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero {{ page.extra.get('feature_class', '') }}">
+  {% if page.extra.get('feature_badge') %}
+  <p class="tag-list">{{ page.extra.get('feature_badge') }}</p>
+  {% endif %}
+  <h1>{{ page.title }}</h1>
+  <div>
+    {{ page.html | safe }}
+  </div>
+</section>
+{% endblock %}
