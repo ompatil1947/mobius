@@ -119,6 +119,7 @@ def normalize_metadata(metadata):
 
         # Convert "true"/"false" → boolean
         if isinstance(value, str):
+            value = value.strip()
             if value.lower() == "true":
                 value = True
             elif value.lower() == "false":
