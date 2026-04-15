@@ -26,4 +26,4 @@ pytest
 
 - `scripts/build.sh` builds the site
 - `scripts/clean.sh` removes generated output
-- `scripts/dev.sh` serves the site with live rebuilding
+- `scripts/dev.sh` serves the site with live rebuilding      

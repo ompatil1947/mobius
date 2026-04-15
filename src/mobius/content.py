@@ -4,7 +4,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from osmium import parse_frontmatter, normalize_metadata
+import yaml
+from osmium import parse_frontmatter
 from markdown import Markdown
 
 from .models import Page
@@ -36,6 +37,33 @@ def _title_from_metadata(metadata: dict[str, Any], source_path: Path) -> str:
     return source_path.stem.replace("-", " ").title()
 
 
+def _parse_yaml_frontmatter(text: str) -> dict[str, Any]:
+    """Parse YAML front matter directly, preserving booleans and lists.
+
+    osmium's parse_frontmatter strips booleans and lists from metadata,
+    so we read the YAML block ourselves using PyYAML (already a dependency).
+    We still rely on osmium to correctly extract the body text.
+    """
+    if not text.startswith("---\n") and text != "---":
+        return {}
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return {}
+    closing_index = None
+    for idx, line in enumerate(lines[1:], start=1):
+        if line.strip() == "---":
+            closing_index = idx
+            break
+    if closing_index is None:
+        return {}
+    metadata_text = "".join(lines[1:closing_index])
+    try:
+        parsed = yaml.safe_load(metadata_text)
+        return parsed if isinstance(parsed, dict) else {}
+    except yaml.YAMLError:
+        return {}
+
+
 def markdown_to_html(text: str) -> str:
     markdown = Markdown(extensions=["fenced_code", "tables", "toc", "codehilite"])
     return markdown.convert(text)
@@ -45,7 +73,9 @@ def load_pages(content_dir: Path, output_dir: Path) -> list[Page]:
     pages: list[Page] = []
     for path in discover_markdown_files(content_dir):
         raw_text = path.read_text(encoding="utf-8")
-        metadata, body = parse_frontmatter(raw_text)
+        metadata = _parse_yaml_frontmatter(raw_text)
+        _, body = parse_frontmatter(raw_text)
+        metadata = normalize_metadata(metadata)
         slug = _slug_for(path, content_dir)
         output_path = _output_path_for(slug, output_dir)
         title = _title_from_metadata(metadata, path)
@@ -74,3 +104,36 @@ def sort_pages(pages: list[Page]) -> list[Page]:
         return order_value, page.title.lower()
 
     return sorted(pages, key=sort_key)
+ 
+def normalize_metadata(metadata):
+    if metadata is None:
+        return {}
+
+    if not isinstance(metadata, dict):
+        return {}
+
+    normalized = {}
+
+    for key, value in metadata.items():
+        key = key.lower()
+
+        # Convert "true"/"false" → boolean
+        if isinstance(value, str):
+            if value.lower() == "true":
+                value = True
+            elif value.lower() == "false":
+                value = False
+
+        # Ensure lists (for tags etc.)
+        if key == "tags":
+            if isinstance(value, str):
+                value = [v.strip() for v in value.split(",")]
+
+        normalized[key] = value
+
+    # ✅ REQUIRED DEFAULTS (VERY IMPORTANT)
+    normalized.setdefault("title", "")
+    normalized.setdefault("featured", False)
+    normalized.setdefault("tags", [])
+
+    return normalized 
